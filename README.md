@@ -12,13 +12,14 @@ npm i http-stub
 
 ```javascript
 var HttpStub = require('http-stub');
-var stub = HttpStub('google.com:80');
+var stub = HttpStub('google.com');
 
 stub.on('request', function (req, res) {
   res.writeHead(200, {'Content-Type': 'text/plain'});
   res.end('Hello World');
 }).on('listening', function () {
-  request.get('http://google.com', function (err, resp, body) {
+  //it catchs all request to the given domain.
+  request.get('https://google.com', function (err, resp, body) {
     assert.equal(body, 'Hello World');
   });
 });
@@ -35,7 +36,7 @@ app.get('/bo', function (req, res) {
   res.send('hello');
 });
 
-var stub = HttpStub('google.com:80');
+var stub = HttpStub('google.com');
 
 stub.on('request', app);
 ```
