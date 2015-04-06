@@ -4,7 +4,7 @@ var http = require('http');
 
 function HttpStub (domain) {
 
-  interceptor.on('request', function (key, options) {
+  function swap (key, options) {
     if (key !== domain) return;
     delete options.port;
     delete options.host;
@@ -14,7 +14,9 @@ function HttpStub (domain) {
     options.port = port;
     options.headers = options.headers || {};
     options.headers.host = domain;
-  });
+  }
+
+  interceptor.on('request', swap);
 
   var server = http.createServer();
 
@@ -24,6 +26,13 @@ function HttpStub (domain) {
     port = p;
     server.listen(port);
   });
+
+  var close = server.close;
+
+  server.close = function () {
+    interceptor.removeListener('request', swap);
+    close.apply(server, arguments);
+  };
 
   return server;
 }
