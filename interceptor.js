@@ -1,17 +1,20 @@
 var http = require('http');
 var request = http.request.bind(http);
+
+var https = require('https');
+var https_request = https.request.bind(http);
+
 var EventEmitter = require('events').EventEmitter;
 
 var emitter = module.exports = new EventEmitter();
 
-function normalize_host (options) {
-  var host = options.host || options.hostname;
-  var port = options.port || '80';
-  return host + ':' + port;
-}
-
 http.request = function (options, callback) {
-  var key = normalize_host(options);
-  emitter.emit('request', key, options);
+  emitter.emit('request', options);
   return request(options, callback);
+};
+
+https.request = function (options, callback) {
+  options._https_stub = true;
+  emitter.emit('request', options);
+  return https_request(options, callback);
 };
