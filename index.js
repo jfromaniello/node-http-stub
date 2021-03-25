@@ -1,20 +1,32 @@
-var freeport = require('freeport');
-var interceptor = require('./interceptor');
-var http = require('http');
-var https = require('https');
-var httpProxy = require('http-proxy');
-var fs = require('fs');
+const freeport = require('freeport');
+const interceptor = require('./interceptor');
+const http = require('http');
+const https = require('https');
+const httpProxy = require('http-proxy');
+const fs = require('fs');
+const { getAvailablePortForUse } = require('./portScannerUtility');
+
+const DEFAULT_MIN_AVAILABLE_PORT = 3000;
+const DEFAULT_MAX_AVAILABLE_PORT = 4000;
 
 function handle(domain, request) {
-  var hostname = request.hostname || request.host;
+  const hostname = request.hostname || request.host;
   return hostname && hostname.split(':')[0] === domain;
 }
 
-function HttpStub (domain) {
-  var port, https_port;
+/**
+ * 
+ * @param {string} domain The domain to stub
+ * @param {boolean} options.useNewPortScanner Use the new port scanner instead of Freeport (legacy port scanner utility)
+ * @param {number=3000} options.minPortNumber The minimun port number to use. Defaults to 3000, only used by new port scanner
+ * @param {number=4000} options.maxPortNumber The maximum port number to use. Defaults to 4000, only used by new port scanner
+ * @returns http.Server
+ */
+function HttpStub (domain, options = { useNewPortScanner : false }) {
+  let port, https_port;
 
-  var server = http.createServer();
-  var https_server;
+  const server = http.createServer();
+  let https_server;
 
   function swap (request) {
     if (!handle(domain, request)){
@@ -41,15 +53,26 @@ function HttpStub (domain) {
   interceptor.on('request', swap);
 
 
-  freeport(function (err, p) {
+  if (!options.minPortNumber) {
+      options.minPortNumber  = DEFAULT_MIN_AVAILABLE_PORT;
+  }
+
+  if (!options.maxPortNumber) {
+    options.maxPortNumber = DEFAULT_MAX_AVAILABLE_PORT;
+  }
+
+  const portScanner = !!options.useNewPortScanner ? getAvailablePortForUse(options.minPortNumber, options.maxPortNumber) : freeport;
+  const proxyServerPort = !!options.useNewPortScanner ? getAvailablePortForUse(options.maxPortNumber + 1, options.maxPortNumber + 1000) : freeport;
+
+  portScanner(function (err, p) {
     port = p;
     server.listen(port);
   });
 
-  freeport(function (err, p) {
+  proxyServerPort(function (err, p) {
     https_port = p;
 
-    var proxy = httpProxy.createProxyServer();
+    const proxy = httpProxy.createProxyServer();
 
     https_server = https.createServer({
       key: fs.readFileSync(__dirname + '/server.key'),
@@ -61,7 +84,7 @@ function HttpStub (domain) {
     https_server.listen(https_port);
   });
 
-  var close = server.close;
+  const close = server.close;
 
   server.close = function () {
     interceptor.removeListener('request', swap);
